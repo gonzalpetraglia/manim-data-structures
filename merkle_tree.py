@@ -7,7 +7,7 @@ def create_connecting_line(object_1, object_2):
     return manim.Line(
                 object_1.get_center(), 
                 object_2.get_center(),
-                stroke_width=0.5*3,
+                stroke_width=3.5,
                 z_index=-10
             )
 
@@ -62,7 +62,7 @@ class MerkleTreeViewModel:
 
 class NodeViewModel:
     def __init__(self, model, stand_alone=False):
-        self.circle = manim.Circle(radius=0.5, color=manim.BLUE, stroke_width=0.5*3).set_fill(manim.BLACK, opacity=1)
+        self.circle = manim.Circle(radius=0.5, color=manim.BLUE, stroke_width=3.5).set_fill(manim.BLACK, opacity=1)
         self.name = manim.MarkupText(model.name, font_size=0.5*20)
         self.exp = manim.MarkupText(model.display, font_size=0.5*20)
         self.value = manim.MarkupText(model.value[0:6], font_size=0.5*20)
@@ -120,30 +120,35 @@ class NodeViewModel:
 
     def animate(self):
         drawing = self.drawing
-        resize_factor = max(drawing.height / 8, drawing.width / (8*16/9))
+        resize_factor = max(drawing.height / 7.5, drawing.width / (7.5*16/9))
         drawing.center().scale(1/resize_factor)
         
         layered_nodes, layered_lines = self.get_layered_nodes_and_lines()
         
         animations = []
-        for (nodes, lines) in zip(layered_nodes[:-1], layered_lines):
 
-            appear_nodes = manim.FadeIn(manim.Group(*[n.root_view for n in nodes]))
-            animations.append(appear_nodes)
-            
-            copies = [n.root_view.copy() for n in nodes]
+        appear_nodes = manim.FadeIn(manim.Group(*[n.root_view for n in layered_nodes[0]]))
+        copies_previous_nodes = [manim.Circle(radius=0.5, color=manim.BLUE, stroke_width=3.5,z_index=-5).set_fill(manim.BLACK, opacity=1).scale(1/resize_factor).move_to(n.root_view.get_center()) for n in layered_nodes[0]]
 
-            appear_copies = manim.FadeIn(manim.Group(*[copy for copy in copies]), run_time=0.001)
-            animations.append(appear_copies)
-            # animations.append(manim.Wait())
+        animations.append(manim.AnimationGroup(*([appear_nodes] + [manim.FadeIn(manim.Group(*[copy for copy in copies_previous_nodes]))])))
+
+        for (nodes, lines) in zip(layered_nodes[1:], layered_lines):
+
 
             animations_lines = [manim.GrowFromPoint(line, line.start) for line in lines]
-            move_copies = [manim.MoveAlongPath(copy, line) for (copy, line) in zip(copies, lines)]
-            # fade_out_copies = [manim.FadeOut(copy) for copy in copies]
+            move_previous_copies = [manim.MoveAlongPath(copy, line) for (copy, line) in zip(copies_previous_nodes, lines)]
 
-            animations.append(manim.AnimationGroup(*( animations_lines + move_copies )))
 
-        animations.append(manim.FadeIn( layered_nodes[-1][0].root_view)) # root
+            copies_previous_nodes = [manim.Circle(radius=0.5, color=manim.BLUE, stroke_width=3.5,z_index=-5).set_fill(manim.BLACK, opacity=1).scale(1/resize_factor).move_to(n.root_view.get_center()) for n in nodes]
+            appear_nodes = [manim.FadeIn(manim.Group(*[n.root_view for n in nodes]))]
+            appear_copies = [manim.FadeIn(manim.Group(*[copy for copy in copies_previous_nodes]))]
+
+
+            animations.append(manim.AnimationGroup(*[
+                manim.AnimationGroup(*( animations_lines + move_previous_copies)),
+                 manim.AnimationGroup(* (appear_nodes + appear_copies))], lag_ratio=1))
+
+
         # layered_copies = [[n.root_view.copy() for n in layer] for layer in layered_nodes]
 
         # appear_copies = [manim.FadeIn(manim.Group(*[copy for copy in layer])) for layer in layered_copies]
@@ -152,7 +157,7 @@ class NodeViewModel:
         # animations_lines = [manim.FadeIn(manim.Group(*[line for line in layer])) for layer in layered_lines]
         # animations = [val for pair in zip(animations_nodes[:-1], animations_lines, appear_copies, move_copies, remove_copies[:-1]) for val in pair] + [animations_nodes[-1]]
 
-        return manim.AnimationGroup(animations, lag_ratio=1.1)
+        return manim.AnimationGroup(animations, lag_ratio=1.5)
 
     def paint_root(self, color):
         self.circle.set_fill(color=color)
@@ -201,7 +206,7 @@ class DrawBigMerkleTree(manim.Scene):
 
 class AnimateMerkleTree(manim.Scene):
     def construct(self):
-        n = MerkleTreeViewModel(["1","2","3","4","1","2","3","4"]).viewModel
+        n = MerkleTreeViewModel(["1","2","3","4","5","6","7","8"]).viewModel
         complete_animation = n.animate()
         
         self.play(complete_animation)
