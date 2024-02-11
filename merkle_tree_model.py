@@ -15,9 +15,9 @@ def create_node(data, get_next_counter, hash_function_leaves, hash_function_node
         else IntermediaryNode(data, "H", get_next_counter, hash_function_leaves, hash_function_nodes)
 class LeafNode:
     """Simple class that represents a Merkle Tree leaf node"""
-    def __init__(self, hash_function_leaves, data, name, get_next_counter):
+    def __init__(self, hash_function_leaves, data, name, get_next_counter, complete_name=None):
         self.value = hash_function_leaves(str(data).encode('utf-8')).hexdigest()
-        self.name = name + "<sub>" + str(get_next_counter()) + "</sub>"
+        self.name = complete_name or (name + "<sub>" + str(get_next_counter()) + "</sub>")
         self.data = data
         self.left = None
         self.right = None
@@ -30,13 +30,18 @@ class LeafNode:
 
 class IntermediaryNode:
     """Simple class that represents a Merkle Tree node"""
-    def __init__(self, data, name, get_next_counter, hash_function_leaves=hashlib.sha256, hash_function_nodes=None):
-        if (not is_power_of_two(len(data))):
-            raise Exception("Not power of 2 not supported")
-        self.data = data
-        self.left = create_node(data[0:len(data)//2], get_next_counter, hash_function_leaves, hash_function_nodes) 
-        self.name = name + "<sub>" + str(get_next_counter()) + "</sub>"
-        self.right = create_node(data[len(data)//2:], get_next_counter, hash_function_leaves, hash_function_nodes) 
+    def __init__(self, data, name, get_next_counter, hash_function_leaves=hashlib.sha256, hash_function_nodes=None, left=None, right=None, complete_name=None):
+        if left and right:
+            self.left = left
+            self.right = right
+            self.data = None
+        else:
+            if (not is_power_of_two(len(data))):
+                raise Exception("Not power of 2 not supported")
+            self.data = data
+            self.left = create_node(data[0:len(data)//2], get_next_counter, hash_function_leaves, hash_function_nodes) 
+            self.right = create_node(data[len(data)//2:], get_next_counter, hash_function_leaves, hash_function_nodes) 
+        self.name = complete_name or (name + "<sub>" + str(get_next_counter()) + "</sub>")
         self.hash_function_nodes = hash_function_nodes or hash_function_leaves
         self.hash_function_leaves = hash_function_leaves
         self.value = self.__hash_pair(self.left.value, self.right.value)
@@ -75,6 +80,9 @@ name_counter = 0
 class MerkleTree:
     """Class that represents a merkle tree that preserves the data"""
     def __init__(self, data, hash_function_leaves=hashlib.sha256, hash_function_nodes=None):
+        self.hash_function_leaves = hash_function_leaves
+        self.hash_function_nodes = hash_function_nodes
+        self.data = data
         global name_counter
         name_counter = 0
         def get_next_counter():
