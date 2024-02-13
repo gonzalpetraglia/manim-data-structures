@@ -12,7 +12,7 @@ def chunks(lst, n):
 def create_node(data, get_next_counter, hash_function_leaves, hash_function_nodes):
     return LeafNode(hash_function_leaves, data[0], "L", get_next_counter) \
         if len(data) == 1 \
-        else IntermediaryNode(data, "H", get_next_counter, hash_function_leaves, hash_function_nodes)
+        else IntermediaryNode(data, "N", get_next_counter, hash_function_leaves, hash_function_nodes)
 class LeafNode:
     """Simple class that represents a Merkle Tree leaf node"""
     def __init__(self, hash_function_leaves, data, name, get_next_counter, complete_name=None):
