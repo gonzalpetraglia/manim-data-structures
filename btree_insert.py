@@ -4,8 +4,8 @@ import random
 
 BORDERS_COLOR = BLUE
 
-tuples_per_leaf = 5
-nodes_per_node = 5
+tuples_per_leaf = 3
+nodes_per_node = 3
 root = None
 
 
@@ -28,23 +28,20 @@ def draw_array(length, width_of_cell=2):
 def scale_and_center(scene):
     drawing = root.get_all_elements()
     
-    width = max(drawing.height * 16/9, drawing.width) * 1.2
+    width = max(drawing.height * 16/9, drawing.width + 4 * tuples_per_leaf)
     scene.camera.frame.set(width=width).move_to(drawing)
 
 def animated_scale_and_center(scene, extra=None):
     drawing = root.get_all_elements()
-    print('scaling')
-    print(drawing.width)
     if extra:
-        print('scaling extra')
         print(drawing.width)
         drawing = Group(drawing, extra)
-    width = max(drawing.height * 16/9, drawing.width) * 1.2
+    width = max(drawing.height * 16/9, drawing.width + 4 * tuples_per_leaf)
     return scene.camera.frame.animate.set(width=width).move_to(drawing)
 
 def animated_scale_and_center_partial(whole, scene):
     drawing = root.get_all_elements()
-    width = max(drawing.height * 16/9, drawing.width) * 1.2
+    width = max(drawing.height * 16/9, drawing.width + 4 * tuples_per_leaf)
     return scene.camera.frame.animate.set(width=width).move_to(drawing)
 
 def get_cell_custom_init(custom_init, position, width_of_cell=2):
@@ -280,7 +277,7 @@ class Leaf(Node):
 
         self.inited = True
 
-    def init_split(self, scene, keys, drawn_keys, parent, left_sibling, right_sibling, is_sibling_left):
+    def init_split(self, scene, drawing, keys, drawn_keys, parent, left_sibling, right_sibling, is_sibling_left):
         
         self.keys = keys
         self.parent = parent
@@ -288,28 +285,25 @@ class Leaf(Node):
         self.right_sibling = right_sibling
         self.left_sibling = left_sibling
 
+        self.left_sibling.right_sibling = self
         if self.right_sibling is not None:
             self.right_sibling.left_sibling = self
-        if self.left_sibling is not None:
-            self.left_sibling.right_sibling = self
 
+        self.drawing = drawing
 
-        self.drawing = draw_array(tuples_per_leaf)
+        if self.right_sibling is not None:
+            print('has something to the right')
+            old_center = self.right_sibling.drawing.get_center() 
 
-        if self.left_sibling is None:
-            self.drawing.move_to(self.right_sibling.drawing.get_center() + LEFT * (self.drawing.width + 2))
-        else:
-            self.drawing.move_to(self.left_sibling.drawing.get_center() + RIGHT * (self.drawing.width + 2))
-            if self.right_sibling is not None:
-                print('has something to the right')
-                old_center = self.right_sibling.drawing.get_center() 
-
-                scene.play(self.right_sibling.move_to_right(RIGHT * (self.drawing.width + 2)))
+            scene.play(self.right_sibling.move_to_right(RIGHT * (self.drawing.width + 3)))
         
-        scene.play(FadeIn(self.drawing))
+        new_center = self.left_sibling.drawing.get_center() + RIGHT * (self.drawing.width + 3)
+        scene.play(
+            self.drawing.animate.move_to(self.left_sibling.drawing.get_center() + RIGHT * (self.drawing.width + 3)),
+            self._take_keys_custom_init(new_center +  LEFT * self.drawing.width / 2)
+        )
         scene.play(animated_scale_and_center(scene, self.drawing))
         
-        scene.play(self._take_keys())
         self.inited = True
 
     def move_to_right(self, amount):
@@ -331,45 +325,35 @@ class Leaf(Node):
         if len(self.keys) < tuples_per_leaf:
             self.simple_insert(key, scene)
         else:
-            expected_position = self.find_position_to_insert(key)
-
-            expected_position = - expected_position - 1
-            split_position = len(self.keys) // 2
-
-            new_sibling = Leaf()
-            self_is_left = expected_position <= split_position
-            must_init_parent = False
-            if self.parent is None:
-                self.parent = IntermmediateNode()
-                must_init_parent = True
-
-            if self_is_left:
-                new_sibling.init_split(scene, self.keys[split_position:], self.drawn_keys[split_position:], self.parent, self, self.right_sibling, self_is_left)
-                self.keys = self.keys[0:split_position]
-                self.drawn_keys = self.drawn_keys[0:split_position]
-                self.right_sibling = new_sibling
-
-            else:
-                new_sibling.init_split(scene, self.keys[0:split_position], self.drawn_keys[0:split_position:], self.parent, self.left_sibling, self,self_is_left)
-                self.keys = self.keys[split_position:]
-                self.drawn_keys = self.drawn_keys[split_position:]
-                scene.play(self._take_keys())
-                self.left_sibling = new_sibling
-
-            self.simple_insert(key, scene)
-
-            if must_init_parent:
-                left_child = self if self_is_left else new_sibling
-                right_child = self if not self_is_left else new_sibling
-                self.parent.init_root(right_child.get_limit(), right_child.drawn_keys[0].copy(), left_child, right_child, scene)
-            else:
-                right_child = new_sibling if self_is_left else self
-                self.parent.insert_node(right_child.get_limit(), right_child.drawn_keys[0].copy(), new_sibling, not self_is_left, scene)
+            self._non_simple_insert(key, scene)
 
         return self.parent if self.parent is not None else self
 
-            
-            
+    def _non_simple_insert(self, key, scene):
+        
+        must_init_parent = False
+        if self.parent is None:
+            self.parent = IntermmediateNode()
+            must_init_parent = True
+        new_sibling = Leaf()
+        split_position = (len(self.keys ) + 1) // 2
+
+        new_rectangle = draw_array(tuples_per_leaf).move_to(self.drawing).shift(RIGHT * 2)
+        scene.play(FadeIn(new_rectangle))
+
+        self.simple_insert(key, scene)
+
+        new_sibling.init_split(scene, new_rectangle, self.keys[split_position:], self.drawn_keys[split_position:], self.parent, self, self.right_sibling, True)
+        self.keys = self.keys[0:split_position]
+        self.drawn_keys = self.drawn_keys[0:split_position]
+        self.right_sibling = new_sibling
+
+        if must_init_parent:
+            self.parent.init_root(new_sibling.get_limit(), new_sibling.drawn_keys[0].copy(), self, new_sibling, scene)
+        else:
+            self.parent.insert_node(new_sibling.get_limit(), new_sibling.drawn_keys[0].copy(), new_sibling, False, scene)
+        
+
     def simple_insert(self, key, scene):
         position = self.find_position_to_insert(key)
         if position >= 0:
@@ -395,7 +379,8 @@ class AnimateMergeSSTable(MovingCameraScene):
 
         insert_list = list(range(tuples_to_insert))
         random.shuffle(insert_list)
-        insert_list = [1,4,7,8,2,3,12,5,11,13, 9,6,10,15,14, 18, 20, 2.5, 3.5, 1.5, 3.3, 6.7, 38]
+        # insert_list = [1,4,7,8,2,3,12,5,11,13, 9,6,10,15,14, 18, 20, 2.5, 3.5, 1.5, 3.3, 6.7, 38]
+        insert_list = [1,4,7,8,2,3,12,5,11]
         for i in insert_list:
             root = root.insert(i, self)
             self.play(animated_scale_and_center(self))            
